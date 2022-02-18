@@ -26,3 +26,9 @@ pub enum EventType {
     Delete,
     Gen,
 }
+
+impl History {
+    pub fn read() -> Self {
+
+    }
+}

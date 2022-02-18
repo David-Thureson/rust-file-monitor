@@ -2,14 +2,18 @@ use std::collections::BTreeMap;
 use std::thread;
 use chrono::{NaiveDateTime, Duration};
 use util::format::format_count;
+use crate::summary::Summary;
 
 const SECONDS_PAUSE: i64 = 30;
 const PATH_HISTORY: &str = "C:/File Monitor History";
 const NAME_DOKUWIKI: &str = "DokuWiki";
 const PATH_DOKUWIKI: &str = "C:/Doku/DokuWikiStick/dokuwiki/data/pages";
 const SUBFOLDERS_DOKUWIKI: [&str; 2] = ["tools", "tools/nav"];
-const MARKER_FILE_NAME_PAUSE: &str = "pause_marker.txt";
-const MARKER_FILE_NAME_GEN: &str = "gen_marker.txt";
+// const FILE_NAME_HISTORY: &str = "history.json";
+#[allow(dead_code)]
+const FILE_NAME_SUMMARY: &str = "summary.json";
+const FILE_NAME_MARKER_PAUSE: &str = "pause_marker.txt";
+const FILE_NAME_MARKER_GEN: &str = "gen_marker.txt";
 
 pub struct Model {
     pub path_history: String,
@@ -93,7 +97,8 @@ impl Project {
             }
         }
 
-
+        Summary::scan(&self, self.is_marker_present(&Marker::Gen));
+        self.clear_marker(&Marker::Gen);
 
         self.print_message(&format!("run_scan() - done: next scan at {}", format_time(next_scan_time)));
     }
@@ -109,7 +114,7 @@ impl Project {
         }
     }
 
-    fn is_marker_present(&self, marker: &Marker) -> bool {
+    pub fn is_marker_present(&self, marker: &Marker) -> bool {
         let path = self.get_marker_file_name(marker);
         util::file::path_exists(&path)
     }
@@ -126,8 +131,8 @@ impl Project {
 impl Marker {
     pub fn get_file_name(&self) -> &str {
         match self {
-            Self::Gen => MARKER_FILE_NAME_GEN,
-            Self::Pause => MARKER_FILE_NAME_PAUSE,
+            Self::Gen => FILE_NAME_MARKER_GEN,
+            Self::Pause => FILE_NAME_MARKER_PAUSE,
         }
     }
 }
