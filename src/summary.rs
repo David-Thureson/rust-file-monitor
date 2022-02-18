@@ -1,16 +1,18 @@
 use chrono::NaiveDateTime;
-use crate::model::Project;
+use crate::model::{Project, FILE_NAME_SUMMARY, PATH_HISTORY};
 use std::fs;
 use std::collections::BTreeMap;
+use serde::Deserialize;
+// use serde_json::Result;
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, Debug, Deserialize)]
 pub struct Summary {
     project_name: String,
     scans: Vec<SummaryScan>,
     files: BTreeMap<String, MonitoredFile>,
 }
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, Debug, Deserialize)]
 pub struct SummaryScan {
     time: NaiveDateTime,
     is_gen: bool,
@@ -18,7 +20,7 @@ pub struct SummaryScan {
     changed_file_count: usize,
 }
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, Debug, Deserialize)]
 pub struct MonitoredFile {
     subfolder: String,
     name: String,
@@ -30,7 +32,7 @@ pub struct MonitoredFile {
 }
 
 impl Summary {
-    pub fn new(project_name: &str) -> Self {
+    fn new(project_name: &str) -> Self {
         Self {
             project_name: project_name.to_string(),
             scans: vec![],
@@ -38,11 +40,34 @@ impl Summary {
         }
     }
 
+    fn read_or_create(project: &Project) -> Self {
+        let path_file = Self::get_summary_file_path(project);
+        dbg!(&path_file);
+        if util::file::path_exists(&path_file) {
+            let data = util::file::read_file_to_string_r(&path_file).unwrap();
+            let summary: Summary = serde_json::from_str(&data).unwrap();
+            assert_eq!(summary.project_name, project.name);
+            summary
+        } else {
+            Summary::new(&project.name)
+        }
+    }
+
+    fn write(&self, project: &Project) {
+        dbg!(&self.project_name, &self.scans.len(), &self.files.len());
+        let path_file = Self::get_summary_file_path(project);
+        dbg!(&path_file);
+        let data = serde_json::to_string(self).unwrap();
+        util::file::write_file_r(path_file, &data).unwrap();
+    }
+
     pub fn scan(project: &Project, is_gen: bool) {
         // For now don't deserialize the Summary object. Just create one.
-        let mut summary = Summary::new(&project.name);
+        // let mut summary = Summary::new(&project.name);
+        let mut summary = Self::read_or_create(project);
         summary.scan_self(project, is_gen);
-        dbg!(summary); panic!();
+        summary.write(project);
+        // dbg!(summary); panic!();
     }
 
     pub fn scan_self(&mut self, project: &Project, is_gen: bool) {
@@ -59,9 +84,9 @@ impl Summary {
                     let file_time = dir_entry.metadata().unwrap().modified().unwrap();
                     let file_time = util::date_time::systemtime_as_naive_date_time(&file_time);
                     checked_file_count += 1;
-                    println!("{}: {}", &file_time, &file_name);
                     match previous_scan_time {
                         Some(previous_scan_time) => {
+                            if file_name.eq("algorithms.txt") { dbg!(previous_scan_time, file_time); }
                             if file_time > previous_scan_time {
                                 changed_file_count += 1;
                                 let key = MonitoredFile::make_key(subfolder, &file_name);
@@ -69,9 +94,12 @@ impl Summary {
                                     Some(file) => {
                                         if is_gen {
                                             file.time_latest_gen = Some(file_time);
+                                            file.gen_count += 1;
                                         } else {
                                             file.time_latest_edit = Some(file_time);
+                                            file.edit_count += 1;
                                         }
+                                        dbg!(&file);
                                     },
                                     None => {
                                         let mut file = MonitoredFile::new(subfolder, &file_name);
@@ -92,7 +120,12 @@ impl Summary {
             }
         }
         let scan = SummaryScan::new(is_gen, checked_file_count, changed_file_count);
+        dbg!(&scan);
         self.scans.push(scan);
+    }
+
+    fn get_summary_file_path(project: &Project) -> String {
+        format!("{}/{}/{}", PATH_HISTORY, project.name, FILE_NAME_SUMMARY)
     }
 }
 

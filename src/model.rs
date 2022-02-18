@@ -5,13 +5,13 @@ use util::format::format_count;
 use crate::summary::Summary;
 
 const SECONDS_PAUSE: i64 = 30;
-const PATH_HISTORY: &str = "C:/File Monitor History";
+pub const PATH_HISTORY: &str = "C:/File Monitor History";
 const NAME_DOKUWIKI: &str = "DokuWiki";
 const PATH_DOKUWIKI: &str = "C:/Doku/DokuWikiStick/dokuwiki/data/pages";
 const SUBFOLDERS_DOKUWIKI: [&str; 2] = ["tools", "tools/nav"];
 // const FILE_NAME_HISTORY: &str = "history.json";
 #[allow(dead_code)]
-const FILE_NAME_SUMMARY: &str = "summary.json";
+pub const FILE_NAME_SUMMARY: &str = "summary.json";
 const FILE_NAME_MARKER_PAUSE: &str = "pause_marker.txt";
 const FILE_NAME_MARKER_GEN: &str = "gen_marker.txt";
 
