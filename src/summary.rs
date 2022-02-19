@@ -1,8 +1,9 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, Duration};
 use crate::model::{Project, FILE_NAME_SUMMARY, PATH_HISTORY};
 use std::fs;
 use std::collections::BTreeMap;
 use serde::Deserialize;
+use std::ops::Sub;
 // use serde_json::Result;
 
 #[derive(serde::Serialize, Debug, Deserialize)]
@@ -42,7 +43,7 @@ impl Summary {
 
     fn read_or_create(project: &Project) -> Self {
         let path_file = Self::get_summary_file_path(project);
-        dbg!(&path_file);
+        //bg!(&path_file);
         if util::file::path_exists(&path_file) {
             let data = util::file::read_file_to_string_r(&path_file).unwrap();
             let summary: Summary = serde_json::from_str(&data).unwrap();
@@ -54,9 +55,9 @@ impl Summary {
     }
 
     fn write(&self, project: &Project) {
-        dbg!(&self.project_name, &self.scans.len(), &self.files.len());
+        //bg!(&self.project_name, &self.scans.len(), &self.files.len());
         let path_file = Self::get_summary_file_path(project);
-        dbg!(&path_file);
+        //bg!(&path_file);
         let data = serde_json::to_string(self).unwrap();
         util::file::write_file_r(path_file, &data).unwrap();
     }
@@ -66,6 +67,7 @@ impl Summary {
         // let mut summary = Summary::new(&project.name);
         let mut summary = Self::read_or_create(project);
         summary.scan_self(project, is_gen);
+        summary.print_activity(10);
         summary.write(project);
         // dbg!(summary); panic!();
     }
@@ -86,7 +88,7 @@ impl Summary {
                     checked_file_count += 1;
                     match previous_scan_time {
                         Some(previous_scan_time) => {
-                            if file_name.eq("algorithms.txt") { dbg!(previous_scan_time, file_time); }
+                            //if file_name.eq("algorithms.txt") { //bg!(previous_scan_time, file_time); }
                             if file_time > previous_scan_time {
                                 changed_file_count += 1;
                                 let key = MonitoredFile::make_key(subfolder, &file_name);
@@ -120,13 +122,30 @@ impl Summary {
             }
         }
         let scan = SummaryScan::new(is_gen, checked_file_count, changed_file_count);
-        dbg!(&scan);
+        //bg!(&scan);
         self.scans.push(scan);
     }
 
     fn get_summary_file_path(project: &Project) -> String {
         format!("{}/{}/{}", PATH_HISTORY, project.name, FILE_NAME_SUMMARY)
     }
+
+    pub fn print_activity(&self, minutes_back: usize) {
+        println!("\nfile-monitor::Summary object for \"{}\" project:", self.project_name);
+        let time_cutoff = util::date_time::naive_date_time_now().sub(Duration::minutes(minutes_back as i64));
+        let mut files = self.files.values()
+            .filter(|file| file.get_time_latest().map_or(false, |(time, _is_gen)| time >= time_cutoff))
+            .map(|file| (file.get_key(), file.get_time_latest().unwrap()))
+            .collect::<Vec<_>>();
+        files.sort_by_cached_key(|file| file.0.clone());
+        for file in files.iter() {
+            let (time, is_gen) = file.1;
+            let is_gen = if is_gen { "gen" } else { "edit" };
+            println!("\t{}: {} {:?}", file.0, is_gen, time);
+        }
+        println!();
+    }
+
 }
 
 impl SummaryScan {
@@ -138,6 +157,7 @@ impl SummaryScan {
             changed_file_count,
         }
     }
+
 }
 
 impl MonitoredFile {
@@ -155,5 +175,22 @@ impl MonitoredFile {
 
     pub fn make_key(subfolder: &str, name: &str) -> String {
         format!("{}/{}", subfolder, name)
+    }
+
+    pub fn get_key(&self) -> String {
+        Self::make_key(&self.subfolder, &self.name)
+    }
+
+    pub fn get_time_latest(&self) -> Option<(NaiveDateTime, bool)> {
+        match (self.time_latest_gen, self.time_latest_edit) {
+            (Some(time_gen), Some(time_edit)) => if time_gen > time_edit {
+                Some((time_gen, true))
+            } else {
+                Some((time_edit, false))
+            }
+            (Some(time_gen), None) => Some((time_gen, true)),
+            (None, Some(time_edit)) => Some((time_edit, false)),
+            (None, None) => None,
+        }
     }
 }

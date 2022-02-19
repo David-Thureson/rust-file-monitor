@@ -137,10 +137,17 @@ impl Marker {
     }
 }
 
-pub fn set_up_model() -> Model {
+pub fn set_up_model(minutes: f32) -> Model {
     let mut model = Model::new(PATH_HISTORY);
-    model.add_project(Project::new(NAME_DOKUWIKI, PATH_DOKUWIKI,  &format!("{}/{}", PATH_HISTORY, NAME_DOKUWIKI), SUBFOLDERS_DOKUWIKI.iter().map(|x| x.to_string()).collect(), 0.3));
+    model.add_project(set_up_project(NAME_DOKUWIKI, minutes));
     model
+}
+
+pub fn set_up_project(project_name: &str, minutes: f32) -> Project {
+    match project_name {
+        NAME_DOKUWIKI => Project::new(NAME_DOKUWIKI, PATH_DOKUWIKI, &format!("{}/{}", PATH_HISTORY, NAME_DOKUWIKI), SUBFOLDERS_DOKUWIKI.iter().map(|x| x.to_string()).collect(), minutes),
+        _ => panic!("Unexpected project name = \"{}\".", project_name),
+    }
 }
 
 fn format_date_time(time: &NaiveDateTime) -> String {
