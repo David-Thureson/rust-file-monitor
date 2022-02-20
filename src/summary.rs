@@ -6,30 +6,34 @@ use serde::Deserialize;
 use std::ops::Sub;
 // use serde_json::Result;
 
+const LABEL_ADD: &str = "Add";
+const LABEL_EDIT: &str = "Edit";
+const LABEL_GEN: &str = "Gen";
+
 #[derive(serde::Serialize, Debug, Deserialize)]
 pub struct Summary {
-    project_name: String,
-    scans: Vec<SummaryScan>,
-    files: BTreeMap<String, MonitoredFile>,
+    pub project_name: String,
+    pub scans: Vec<SummaryScan>,
+    pub files: BTreeMap<String, MonitoredFile>,
 }
 
 #[derive(serde::Serialize, Debug, Deserialize)]
 pub struct SummaryScan {
-    time: NaiveDateTime,
-    is_gen: bool,
-    checked_file_count: usize,
-    changed_file_count: usize,
+    pub time: NaiveDateTime,
+    pub is_gen: bool,
+    pub checked_file_count: usize,
+    pub changed_file_count: usize,
 }
 
 #[derive(serde::Serialize, Debug, Deserialize)]
 pub struct MonitoredFile {
-    subfolder: String,
-    name: String,
-    time_added: Option<NaiveDateTime>,
-    time_latest_edit: Option<NaiveDateTime>,
-    time_latest_gen: Option<NaiveDateTime>,
-    gen_count: usize,
-    edit_count: usize,
+    pub subfolder: String,
+    pub name: String,
+    pub time_added: Option<NaiveDateTime>,
+    pub time_latest_edit: Option<NaiveDateTime>,
+    pub time_latest_gen: Option<NaiveDateTime>,
+    pub gen_count: usize,
+    pub edit_count: usize,
 }
 
 impl Summary {
@@ -41,7 +45,7 @@ impl Summary {
         }
     }
 
-    fn read_or_create(project: &Project) -> Self {
+    pub fn read_or_create(project: &Project) -> Self {
         let path_file = Self::get_summary_file_path(project);
         //bg!(&path_file);
         if util::file::path_exists(&path_file) {
@@ -67,7 +71,7 @@ impl Summary {
         // let mut summary = Summary::new(&project.name);
         let mut summary = Self::read_or_create(project);
         summary.scan_self(project, is_gen);
-        summary.print_activity(10);
+        summary.print_activity(120);
         summary.write(project);
         // dbg!(summary); panic!();
     }
@@ -101,7 +105,7 @@ impl Summary {
                                             file.time_latest_edit = Some(file_time);
                                             file.edit_count += 1;
                                         }
-                                        dbg!(&file);
+                                        //bg!(&file);
                                     },
                                     None => {
                                         let mut file = MonitoredFile::new(subfolder, &file_name);
@@ -139,9 +143,8 @@ impl Summary {
             .collect::<Vec<_>>();
         files.sort_by_cached_key(|file| file.0.clone());
         for file in files.iter() {
-            let (time, is_gen) = file.1;
-            let is_gen = if is_gen { "gen" } else { "edit" };
-            println!("\t{}: {} {:?}", file.0, is_gen, time);
+            let (time, label) = file.1;
+            println!("\t{}: {} {:?}", file.0, label, time);
         }
         println!();
     }
@@ -181,16 +184,21 @@ impl MonitoredFile {
         Self::make_key(&self.subfolder, &self.name)
     }
 
-    pub fn get_time_latest(&self) -> Option<(NaiveDateTime, bool)> {
-        match (self.time_latest_gen, self.time_latest_edit) {
-            (Some(time_gen), Some(time_edit)) => if time_gen > time_edit {
-                Some((time_gen, true))
-            } else {
-                Some((time_edit, false))
-            }
-            (Some(time_gen), None) => Some((time_gen, true)),
-            (None, Some(time_edit)) => Some((time_edit, false)),
-            (None, None) => None,
+    pub fn get_time_latest(&self) -> Option<(NaiveDateTime, &'static str)> {
+        match self.time_added {
+            Some(time_add) => Some((time_add, LABEL_ADD)),
+            None => {
+                match (self.time_latest_edit, self.time_latest_gen) {
+                    (Some(time_gen), Some(time_edit)) => if time_gen > time_edit {
+                        Some((time_gen, LABEL_GEN))
+                    } else {
+                        Some((time_edit, LABEL_EDIT))
+                    }
+                    (Some(time_gen), None) => Some((time_gen, LABEL_GEN)),
+                    (None, Some(time_edit)) => Some((time_edit, LABEL_EDIT)),
+                    (None, None) => None,
+                }
+            },
         }
     }
 }
