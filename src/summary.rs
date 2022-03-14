@@ -10,6 +10,8 @@ const LABEL_ADD: &str = "Add";
 const LABEL_EDIT: &str = "Edit";
 const LABEL_GEN: &str = "Gen";
 
+const PRINT_ACTIVITY_MINUTES_BACK: usize = 60;
+
 #[derive(serde::Serialize, Debug, Deserialize)]
 pub struct Summary {
     pub project_name: String,
@@ -34,6 +36,12 @@ pub struct MonitoredFile {
     pub time_latest_gen: Option<NaiveDateTime>,
     pub gen_count: usize,
     pub edit_count: usize,
+}
+
+#[derive(Debug)]
+pub struct LabeledTime {
+    pub time: NaiveDateTime,
+    pub label: &'static str,
 }
 
 impl Summary {
@@ -71,7 +79,7 @@ impl Summary {
         // let mut summary = Summary::new(&project.name);
         let mut summary = Self::read_or_create(project);
         summary.scan_self(project, is_gen);
-        summary.print_activity(120);
+        summary.print_activity_no_gen(PRINT_ACTIVITY_MINUTES_BACK);
         summary.write(project);
         // dbg!(summary); panic!();
     }
@@ -149,6 +157,21 @@ impl Summary {
         println!();
     }
 
+    pub fn print_activity_no_gen(&self, minutes_back: usize) {
+        println!("\nfile-monitor::Summary object for \"{}\" project:", self.project_name);
+        let time_cutoff = util::date_time::naive_date_time_now().sub(Duration::minutes(minutes_back as i64));
+        let mut files = self.files.values()
+            .filter(|file| file.get_time_latest_no_gen().map_or(false, |labeled_time| labeled_time.time >= time_cutoff))
+            .map(|file| (file.get_key(), file.get_time_latest_no_gen().unwrap()))
+            .collect::<Vec<_>>();
+        files.sort_by_cached_key(|file| file.0.clone());
+        for file in files.iter() {
+            let labeled_time = &file.1;
+            println!("\t{}: {} {:?}", file.0, labeled_time.label, labeled_time.time);
+        }
+        println!();
+    }
+
 }
 
 impl SummaryScan {
@@ -199,6 +222,27 @@ impl MonitoredFile {
                     (None, None) => None,
                 }
             },
+        }
+    }
+
+    pub fn get_time_latest_no_gen(&self) -> Option<LabeledTime> {
+        match self.time_added {
+            Some(time_add) => Some(LabeledTime::new(time_add, LABEL_ADD)),
+            None => {
+                match self.time_latest_edit {
+                    Some(time_edit) => Some(LabeledTime::new(time_edit, LABEL_EDIT)),
+                    None => None,
+                }
+            },
+        }
+    }
+}
+
+impl LabeledTime {
+    pub fn new(time: NaiveDateTime, label: &'static str) -> Self {
+        LabeledTime {
+            time,
+            label,
         }
     }
 }
